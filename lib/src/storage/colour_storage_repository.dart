@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:just_database/just_database.dart';
 import 'package:just_storage/just_storage.dart';
 
+import '../library/colour_library.dart';
 import '../models/colour_palette.dart';
 import '../models/colour_selection.dart';
 import '../models/gradient_config.dart';
+import '../models/named_gradient.dart';
 
 class ColourStorageRepository {
   static const String _selectionKey = 'just_colours.current_selection';
@@ -15,6 +17,7 @@ class ColourStorageRepository {
       'just_colours.pinned_recent_colors';
   static const String _pinnedRecentGradientsKey =
       'just_colours.pinned_recent_gradients';
+  static const String _recentsKey = 'just_colours.recents';
 
   final JustStandardStorage _storage;
   final JustDatabase _database;
@@ -234,6 +237,99 @@ class ColourStorageRepository {
         .map(_parseSelection)
         .whereType<ColourSelection>()
         .toList();
+  }
+
+  Future<void> deletePalette(String id) async {
+    await _database.execute(
+      "DELETE FROM colour_palettes WHERE id = '${_escape(id)}'",
+    );
+  }
+
+  /// Saved gradients with their ids, oldest first.
+  Future<List<NamedGradient>> listNamedGradients() async {
+    final result = await _database.query(
+      'SELECT id, name, config_json FROM colour_gradients '
+      'ORDER BY created_at ASC',
+    );
+    if (!result.success) return const [];
+    return [
+      for (final row in result.rows)
+        if (_parseGradient(row['config_json'] as String? ?? '{}')
+            case final gradient?)
+          NamedGradient(
+            id: row['id'] as String? ?? '',
+            name: row['name'] as String? ?? 'Gradient',
+            gradient: gradient,
+          ),
+    ];
+  }
+
+  /// Adds [gradient], or replaces the one with its id.
+  Future<void> saveNamedGradient(NamedGradient gradient, {int? order}) async {
+    final id = gradient.id.isEmpty ? _id('gradient') : gradient.id;
+    final payload = jsonEncode(gradient.gradient.toJson());
+    await deleteGradient(id);
+    await _database.execute(
+      'INSERT INTO colour_gradients '
+      "(id, name, config_json, created_at) VALUES ('${_escape(id)}', "
+      "'${_escape(gradient.name)}', '${_escape(payload)}', "
+      '${order ?? DateTime.now().millisecondsSinceEpoch})',
+    );
+  }
+
+  Future<void> deleteGradient(String id) async {
+    await _database.execute(
+      "DELETE FROM colour_gradients WHERE id = '${_escape(id)}'",
+    );
+  }
+
+  /// Everything kept here, as a [ColourLibrary] that writes its changes
+  /// back: recent colours to storage, palettes and gradients to the
+  /// database.
+  Future<ColourLibrary> loadLibrary() async {
+    final palettes = (await listPalettes()).reversed.toList();
+    final gradients = await listNamedGradients();
+    final recents = await _storage.readJson<Map<String, dynamic>>(
+      _recentsKey,
+      (value) => value,
+    );
+    final library = ColourLibrary(palettes: palettes, gradients: gradients);
+    if (recents != null) library.loadRecents(recents);
+
+    library.recentsChanged.addListener(() {
+      _storage.writeJson<Map<String, dynamic>>(
+        _recentsKey,
+        library.recentsToJson(),
+        (value) => value,
+      );
+    });
+
+    var keptPalettes = {for (final p in palettes) p.id};
+    var keptGradients = {for (final g in gradients) g.id};
+    library.collectionsChanged.addListener(() async {
+      final nowPalettes = library.palettes;
+      final nowGradients = library.gradients;
+      for (final id in keptPalettes.difference(
+        {for (final p in nowPalettes) p.id},
+      )) {
+        await deletePalette(id);
+      }
+      for (final id in keptGradients.difference(
+        {for (final g in nowGradients) g.id},
+      )) {
+        await deleteGradient(id);
+      }
+      for (final p in nowPalettes) {
+        await savePalette(p);
+      }
+      final base = DateTime.now().millisecondsSinceEpoch;
+      for (var i = 0; i < nowGradients.length; i++) {
+        await saveNamedGradient(nowGradients[i], order: base + i);
+      }
+      keptPalettes = {for (final p in nowPalettes) p.id};
+      keptGradients = {for (final g in nowGradients) g.id};
+    });
+    return library;
   }
 
   Future<void> close() => DatabaseManager.close(_databaseName);

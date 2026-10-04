@@ -13,14 +13,38 @@ abstract final class ColourCodec {
     return includeAlpha ? '#$aHex$rHex$gHex$bHex' : '#$rHex$gHex$bHex';
   }
 
+  /// Reads `#RRGGBB` or `#AARRGGBB`; throws [FormatException] otherwise.
   static Color fromHex(String value) {
-    final normalized = value.replaceAll('#', '').trim();
-    if (normalized.length == 6) {
-      return Color(int.parse('FF$normalized', radix: 16));
+    final parsed = tryParseHex(value);
+    if (parsed == null) {
+      throw FormatException('Invalid color hex value: $value');
     }
-    if (normalized.length == 8) {
-      return Color(int.parse(normalized, radix: 16));
-    }
-    throw FormatException('Invalid color hex value: $value');
+    return parsed;
   }
+
+  /// Reads a typed or pasted colour: `RGB`, `RRGGBB` or `AARRGGBB`, with or
+  /// without `#` or `0x`, surrounding spaces ignored. Null when it is not
+  /// one.
+  static Color? tryParseHex(String value) {
+    var s = value.trim();
+    if (s.startsWith('#')) {
+      s = s.substring(1);
+    } else if (s.toLowerCase().startsWith('0x')) {
+      s = s.substring(2);
+    }
+    if (!RegExp(r'^[0-9a-fA-F]+$').hasMatch(s)) return null;
+    switch (s.length) {
+      case 3:
+        final expanded = s.split('').map((c) => '$c$c').join();
+        return Color(int.parse('FF$expanded', radix: 16));
+      case 6:
+        return Color(int.parse('FF$s', radix: 16));
+      case 8:
+        return Color(int.parse(s, radix: 16));
+    }
+    return null;
+  }
+
+  /// 0–255 channel value.
+  static int channel(double unit) => (unit * 255.0).round().clamp(0, 255);
 }

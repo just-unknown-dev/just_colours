@@ -1,12 +1,21 @@
 library;
 
+export 'src/library/colour_library.dart';
 export 'src/models/colour_palette.dart';
 export 'src/models/colour_selection.dart';
 export 'src/models/gradient_config.dart';
+export 'src/models/named_gradient.dart';
 export 'src/presets/colour_presets.dart';
 export 'src/storage/colour_storage_repository.dart';
 export 'src/theory/colour_theory.dart';
-export 'src/ui/just_colour_dialog.dart';
+export 'src/ui/colour_popover.dart';
 export 'src/ui/colour_quick_picker_dialog.dart';
+export 'src/ui/just_colour_dialog.dart';
+export 'src/ui/picker/colour_picker_panel.dart';
+export 'src/ui/picker/eyedropper.dart';
+export 'src/ui/picker/gradient_editor.dart';
+export 'src/ui/picker/solid_colour_editor.dart';
 export 'src/ui/widgets/colour_wheel.dart';
+export 'src/ui/widgets/gradient_canvas.dart';
+export 'src/ui/widgets/gradient_stop_bar.dart';
 export 'src/utils/colour_codec.dart';
