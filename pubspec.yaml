@@ -1,6 +1,6 @@
 name: just_colours
-description: "Color toolkit package with palettes, gradients, color theory helpers, and picker UI dialogs."
-version: 0.0.1
+description: "Color toolkit package with palettes, gradients, color theory helpers, and picker UI."
+version: 0.1.0
 homepage: https://github.com/just-unknown-dev/just-game-engine
 
 environment:
